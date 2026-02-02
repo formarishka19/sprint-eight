@@ -41,7 +41,7 @@ func (s ParcelStore) Get(number int) (Parcel, error) {
 	p.Number = number
 	err := row.Scan(&p.Client, &p.Status, &p.Address, &p.CreatedAt)
 	if err != nil {
-		return p, err
+		return Parcel{}, err
 	}
 
 	return p, nil
@@ -51,28 +51,21 @@ func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
 	// реализуйте чтение строк из таблицы parcel по заданному client
 	// здесь из таблицы может вернуться несколько строк
 	var res []Parcel
-	rows, err := s.db.Query("SELECT number, status, address, created_at FROM parcel WHERE client = :client", sql.Named("client", client))
+	rows, err := s.db.Query("SELECT number, status, address, created_at, client FROM parcel WHERE client = :client", sql.Named("client", client))
 	if err != nil {
-		return res, err
+		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var number int
-		var status string
-		var address string
-		var created_at string
-
-		err := rows.Scan(&number, &status, &address, &created_at)
-		if err != nil {
-			return res, err
+		if err = rows.Err(); err != nil {
+			return nil, err
 		}
-
-		res = append(res, Parcel{
-			Number:    number,
-			Client:    client,
-			Status:    status,
-			Address:   address,
-			CreatedAt: created_at})
+		p := Parcel{}
+		err := rows.Scan(&p.Number, &p.Status, &p.Address, &p.CreatedAt, &p.Client)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, p)
 	}
 
 	// заполните срез Parcel данными из таблицы
@@ -86,7 +79,7 @@ func (s ParcelStore) SetStatus(number int, status string) error {
 		sql.Named("status", status),
 		sql.Named("number", number))
 	if err != nil {
-		return err
+		return fmt.Errorf("error setting status for parcel %d - %w", number, err)
 	}
 
 	return nil
@@ -100,7 +93,7 @@ func (s ParcelStore) SetAddress(number int, address string) error {
 		sql.Named("number", number),
 		sql.Named("status", ParcelStatusRegistered))
 	if err != nil {
-		return err
+		return fmt.Errorf("error setting address for parcel %d - %w", number, err)
 	}
 	rows, err := res.RowsAffected()
 	if rows == 0 {
@@ -117,7 +110,7 @@ func (s ParcelStore) Delete(number int) error {
 		sql.Named("number", number),
 		sql.Named("status", ParcelStatusRegistered))
 	if err != nil {
-		return err
+		return fmt.Errorf("error deleting parcel %d - %w", number, err)
 	}
 	rows, err := res.RowsAffected()
 	if rows == 0 {
